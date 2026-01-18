@@ -1,0 +1,148 @@
+{{define "title"}}Length converter{{end}} {{define "content"}}
+<style>
+  .w-100 {
+    width: 100%;
+  }
+  .form-class {
+    width: 30%;
+    display: flex;
+    flex-direction: column;
+  }
+</style>
+<script>
+  (function () {
+    class SelectList extends HTMLElement {
+      connectedCallback() {
+        this.container = document.createElement("div");
+
+        const name = this.type;
+        const units = this.units
+          .replace(/[\[\]{}]/g, "")
+          .trim()
+          .split(/\s+/);
+
+        this.renderTemplate(name, units);
+
+        this.replaceChildren(this.container);
+      }
+      static get observedAttributes() {
+        return ["type", "units"];
+      }
+
+      attributeChangedCallback(property, oldValue, newValue) {
+        if (oldValue === newValue) return;
+        this[property] = newValue;
+      }
+
+      constructor(type, units) {
+        super();
+        this.type = type;
+        this.units = units;
+      }
+
+      renderTemplate(name, units) {
+        this.container.replaceChildren();
+
+        const label = document.createElement("label");
+        label.setAttribute("for", name);
+        label.classList.add("form-label");
+        label.textContent = `Unit to convert ${name}:`;
+
+        const br = document.createElement("br");
+
+        const select = document.createElement("select");
+        select.classList.add("form-select");
+        select.style.width = "100%";
+        select.name = name;
+        select.id = name;
+
+        units.forEach((u) => {
+          const option = document.createElement("option");
+          option.value = u;
+          option.textContent = u;
+          select.appendChild(option);
+        });
+
+        this.container.append(label, br, select);
+      }
+    }
+
+    customElements.define("select-list", SelectList);
+  })();
+
+  async function convert(e) {
+    e.preventDefault();
+
+    try {
+      const unitType = window.location.href.split("/")[3];
+      const firstContainer = e.target.children[3].container;
+      const secondContainer = e.target.children[5].container;
+
+      const firstSelect = firstContainer.querySelector("select");
+      const secondSelect = secondContainer.querySelector("select");
+
+      const body = {
+        value: parseInt(e.target.value.value),
+        from: firstSelect.value,
+        to: secondSelect.value,
+        unitType,
+      };
+
+      const rawResponse = await fetch("/convert", {
+        method: "POST",
+        headers: {
+          Accept: "application/json",
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(body),
+      });
+
+      const content = await rawResponse.json();
+      const wrapper = document.getElementById("wrapper");
+
+      wrapper.innerHTML = `
+      <div class="h5 text-center">Result of your calculation</div>
+      <br/>
+      <div class="text-center">
+        <span class="h4">${content.value} ${content.from}</span> = <span class="h4">${parseFloat(content.convertedValue).toFixed(2)} ${content.to}<span>
+      </div>
+      <br/>
+      <div class="text-center">
+        <button class="btn btn-primary" type="button" onclick="reload();">Reset</button>
+      </div>
+      `;
+    } catch (err) {
+      console.error(err);
+    }
+  }
+
+  function reload() {
+    window.location.reload();
+  }
+</script>
+<div class="container">
+  <div class="row">
+    <div class="offset-md-3 col-md-6" id="wrapper">
+      <form class="w-100 form-class" onsubmit="convert(event)">
+        <label for="value" class="form-label"
+          >Enter the {{.Title}} to convert:</label
+        >
+        <input
+          type="number"
+          id="value"
+          class="form-control"
+          name="value"
+          value="0"
+        /><br />
+
+        <select-list type="from" units="{{.Units}}"></select-list>
+        <br />
+        <select-list type="to" units="{{.Units}}"></select-list>
+
+        <br />
+        <input class="btn btn-primary" type="submit" value="Convert" />
+      </form>
+    </div>
+  </div>
+</div>
+{{end}}
